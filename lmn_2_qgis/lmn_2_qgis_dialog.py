@@ -45,6 +45,8 @@ from datetime import datetime
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'lmn_2_qgis_dialog_base.ui'))
 
+#from lmn_2_qgis_dialog_base import Ui_LMN_to_QGISDialogBase
+
 class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, iface, parent=None):
         """Constructor."""
@@ -53,14 +55,17 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.setupUi(self)
         self.iface = iface
 
+        # Set the window icon
+        self.setWindowIcon(QtGui.QIcon(":/plugins/lmn_2_qgis/icon.png"))
+
         # dialog elemets connections to functions
-        self.pbVacuum.clicked.connect(self.on_pbVacuum_clicked)
-        self.pbCancel.clicked.connect(self.on_pbCancel_clicked)
-        self.pbBrowseUNL.clicked.connect(self.on_pbBrowseUNL_clicked)
-        self.pbBrowseSLMN.clicked.connect(self.on_pbBrowseSLMN_clicked)
-        self.pbBrowsePOCH.clicked.connect(self.on_pbBrowsePOCH_clicked)
-        self.pbBrowseKSLMN.clicked.connect(self.on_pbBrowseKSLMN_clicked)
-        self.pbLoad.clicked.connect(self.on_pbLoad_clicked)
+        self.pbCancel.clicked.connect(self.on_pbButton_clicked)
+        self.pbClear.clicked.connect(self.on_pbButton_clicked)
+        self.pbBrowseUNL.clicked.connect(self.on_pbButton_clicked)
+        self.pbBrowseSLMN.clicked.connect(self.on_pbButton_clicked)
+        self.pbBrowsePOCH.clicked.connect(self.on_pbButton_clicked)
+        self.pbBrowseKSLMN.clicked.connect(self.on_pbButton_clicked)
+        self.pbLoad.clicked.connect(self.on_pbButton_clicked)
 
         override = 0 # dev utility for recreating project structure
 
@@ -78,11 +83,24 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.iface.addPluginToMenu("&My Plugin", self.action)
 
     def showDialog(self):
-        self.dialog.show()  # Show the dialog
+        self.dialog = Lmn2QgisDialog(self.iface)
+        self.dialog.show()
 
-    # utility to quickly open desired directory either on Win, Mac or Linux
+    def on_pbButton_clicked(self):
+        sender = self.sender()
+        button_name = sender.text()
 
-    ### utility functions group
+        match button_name:
+            case 'pbCancel':
+                print("Close window")
+            case 'pbClear':
+                print("Clear window contents")
+            case 'pbBrowseUNL':
+                print("Browse for UNL")
+
+        # utility to quickly open desired directory either on Win, Mac or Linux
+
+        ### utility functions group
 
     def open_folder(self, folder_path):
         # Normalize the folder path and make sure it is absolute
