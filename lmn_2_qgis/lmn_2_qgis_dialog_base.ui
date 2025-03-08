@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>767</width>
-    <height>289</height>
+    <height>359</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -22,72 +22,14 @@
    </property>
    <item row="0" column="1">
     <layout class="QGridLayout" name="gridLayout_4">
-     <item row="4" column="1">
-      <widget class="QLabel" name="label_3">
-       <property name="text">
-        <string>(Opcjonalnie) Wskaż plik ZIP zawierający warstwy pochodne</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="2">
-      <widget class="QPushButton" name="pbBrowseSLMN">
-       <property name="toolTipDuration">
-        <number>7</number>
-       </property>
-       <property name="text">
-        <string>Przeglądaj</string>
-       </property>
-      </widget>
-     </item>
-     <item row="9" column="1" rowspan="2">
-      <widget class="QPushButton" name="pbLoad">
-       <property name="maximumSize">
+     <item row="11" column="3">
+      <widget class="QPushButton" name="pbCancel">
+       <property name="minimumSize">
         <size>
-         <width>16777215</width>
-         <height>1800</height>
+         <width>0</width>
+         <height>24</height>
         </size>
        </property>
-       <property name="text">
-        <string>Wczytaj dane</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="1">
-      <widget class="QLabel" name="label_2">
-       <property name="text">
-        <string>Wskaż plik ZIP zawierający pliki UNL</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QLineEdit" name="leUNL"/>
-     </item>
-     <item row="1" column="2">
-      <widget class="QPushButton" name="pbBrowseUNL">
-       <property name="text">
-        <string>Przeglądaj</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="1">
-      <widget class="QLineEdit" name="lePOCH"/>
-     </item>
-     <item row="6" column="1">
-      <widget class="QLabel" name="label_4">
-       <property name="text">
-        <string>(Opcjonalnie) Wskaż plik ZIP zawierający warstwy &quot;Kontrole SLMN&quot;</string>
-       </property>
-      </widget>
-     </item>
-     <item row="7" column="2">
-      <widget class="QPushButton" name="pbBrowseKSLMN">
-       <property name="text">
-        <string>Przeglądaj</string>
-       </property>
-      </widget>
-     </item>
-     <item row="10" column="2">
-      <widget class="QPushButton" name="pbCancel">
        <property name="text">
         <string>Anuluj</string>
        </property>
@@ -100,38 +42,151 @@
        </property>
       </widget>
      </item>
-     <item row="7" column="1">
-      <widget class="QLineEdit" name="leKSLMN"/>
+     <item row="5" column="1">
+      <widget class="QLineEdit" name="lePOCH"/>
      </item>
-     <item row="9" column="2">
-      <widget class="QPushButton" name="pbClear">
+     <item row="10" column="3">
+      <widget class="QPushButton" name="pbRecalcId">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>24</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>1800</height>
+        </size>
+       </property>
        <property name="text">
-        <string>Wyczyść</string>
+        <string>Przelicz ID</string>
        </property>
       </widget>
      </item>
-     <item row="3" column="1">
-      <widget class="QLineEdit" name="leSLMN"/>
+     <item row="7" column="1">
+      <widget class="QLineEdit" name="leKSLMN"/>
      </item>
-     <item row="5" column="2">
+     <item row="6" column="1">
+      <widget class="QLabel" name="label_4">
+       <property name="text">
+        <string>(Opcjonalnie) Wskaż plik ZIP zawierający warstwy &quot;Kontrole SLMN&quot;</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="3">
+      <widget class="QPushButton" name="pbBrowseUNL">
+       <property name="text">
+        <string>Przeglądaj</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="3">
       <widget class="QPushButton" name="pbBrowsePOCH">
        <property name="text">
         <string>Przeglądaj</string>
        </property>
       </widget>
      </item>
-     <item row="8" column="1">
-      <spacer name="verticalSpacer">
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
+     <item row="10" column="1" rowspan="2">
+      <widget class="QPushButton" name="pbExport">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
        </property>
-       <property name="sizeHint" stdset="0">
+       <property name="minimumSize">
         <size>
-         <width>20</width>
-         <height>40</height>
+         <width>0</width>
+         <height>52</height>
         </size>
        </property>
-      </spacer>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>16777215</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>Eksportuj dane</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QLineEdit" name="leSLMN"/>
+     </item>
+     <item row="3" column="3">
+      <widget class="QPushButton" name="pbBrowseSLMN">
+       <property name="toolTipDuration">
+        <number>7</number>
+       </property>
+       <property name="text">
+        <string>Przeglądaj</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLabel" name="label_2">
+       <property name="text">
+        <string>Wskaż plik ZIP zawierający pliki UNL</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QLabel" name="label_3">
+       <property name="text">
+        <string>(Opcjonalnie) Wskaż plik ZIP zawierający warstwy pochodne</string>
+       </property>
+      </widget>
+     </item>
+     <item row="7" column="3">
+      <widget class="QPushButton" name="pbBrowseKSLMN">
+       <property name="text">
+        <string>Przeglądaj</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QLineEdit" name="leUNL"/>
+     </item>
+     <item row="8" column="1">
+      <widget class="QPushButton" name="pbLoad">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>52</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>1800</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>Importuj dane</string>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="3">
+      <widget class="QPushButton" name="pbClear">
+       <property name="minimumSize">
+        <size>
+         <width>0</width>
+         <height>52</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>1800</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>Wyczyść</string>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>

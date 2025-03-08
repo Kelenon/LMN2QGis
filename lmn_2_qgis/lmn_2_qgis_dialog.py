@@ -25,57 +25,58 @@
 
 import os
 import subprocess
-import platform
-import time
 import shutil
 import csv
 import sys
 import uuid
-from zipfile import ZipFile
-from qgis.core import (QgsProject,QgsLayerTreeGroup, QgsVectorLayer, QgsRasterLayer, QgsLayerTreeGroup,
-    QgsCoordinateReferenceSystem,
-    QgsSettings, QgsUnitTypes,QgsLayerTreeLayer)
+import zipfile
+from os.path import basename
+from qgis.core import (Qgis, QgsProject, QgsLayerTreeGroup, QgsVectorLayer, QgsRasterLayer,
+    QgsCoordinateReferenceSystem, QgsSettings, QgsUnitTypes, QgsLayerTreeLayer, QgsMessageLog, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils, QgsFeatureRequest, )
+from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QColor
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets, QtGui
-from PyQt5.QtWidgets import QFileDialog, QLineEdit, QMessageBox, QPushButton
+from PyQt5.QtWidgets import QFileDialog, QLineEdit, QMessageBox, QPushButton, QDialog, QVBoxLayout, QCheckBox, QProgressDialog
 from datetime import datetime
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'lmn_2_qgis_dialog_base.ui'))
 
-#from lmn_2_qgis_dialog_base import Ui_LMN_to_QGISDialogBase
-
 class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, iface, parent=None):
         """Constructor."""
         super(Lmn2QgisDialog, self).__init__(parent)
 
-        self.setupUi(self)
         self.iface = iface
+
+        self.setupUi(self)
 
         # Set the window icon
         self.setWindowIcon(QtGui.QIcon(":/plugins/lmn_2_qgis/icon.png"))
 
         # dialog elemets connections to functions
+        #self.pbCancel.clicked.disconnect()
         self.pbCancel.clicked.connect(self.on_pbButton_clicked)
+        #self.pbClear.clicked.disconnect()
         self.pbClear.clicked.connect(self.on_pbButton_clicked)
+        #self.pbBrowseUNL.clicked.disconnect()
         self.pbBrowseUNL.clicked.connect(self.on_pbButton_clicked)
+        #self.pbBrowseSLMN.clicked.disconnect()
         self.pbBrowseSLMN.clicked.connect(self.on_pbButton_clicked)
+        #self.pbBrowsePOCH.clicked.disconnect()
         self.pbBrowsePOCH.clicked.connect(self.on_pbButton_clicked)
+        #self.pbBrowseKSLMN.clicked.disconnect()
         self.pbBrowseKSLMN.clicked.connect(self.on_pbButton_clicked)
+        #self.pbLoad.clicked.disconnect()
         self.pbLoad.clicked.connect(self.on_pbButton_clicked)
+        self.pbExport.clicked.disconnect()
+        self.pbExport.clicked.connect(self.on_pbExport_clicked)
+        self.pbRecalcId.clicked.disconnect()
+        self.pbRecalcId.clicked.connect(self.on_pbRecalcId_clicked)
 
-        override = 0 # dev utility for recreating project structure
-
-        if override == 1:
-            self.create_layers_csv("C:/Users/adam.kurzawinski/Documents/011_Geomatyka/007_Skrypty/004_lmn2qgis/000_daneTestowe/Layer_info.csv")
-
-        else:
-            self.check_if_project_open()
-
-    ###dialog functions group
+###main dialog functions group
 
     def initGui(self):
         self.action = QtWidgets.QAction("Open Dialog", self.iface.mainWindow())
@@ -88,19 +89,48 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def on_pbButton_clicked(self):
         sender = self.sender()
-        button_name = sender.text()
+        button_name = sender.objectName()
+        caption = None
+        lineEdit = None
 
         match button_name:
             case 'pbCancel':
-                print("Close window")
+                self.leUNL.clear()
+                self.leSLMN.clear()
+                self.lePOCH.clear()
+                self.leKSLMN.clear()
+                self.close()
+
             case 'pbClear':
-                print("Clear window contents")
+                self.leUNL.clear()
+                self.leSLMN.clear()
+                self.lePOCH.clear()
+                self.leKSLMN.clear()
+
+            case 'pbLoad':
+                self.loadData()
+
             case 'pbBrowseUNL':
-                print("Browse for UNL")
+                caption = "Wskaż plik bazy UNL"
+                lineEdit = self.leUNL
+            case 'pbBrowseSLMN':
+                caption = "Wskaż plik bazy SLMN"
+                lineEdit = self.leSLMN
+            case 'pbBrowsePOCH':
+                caption = "Wskaż plik bazy POCH"
+                lineEdit = self.lePOCH
+            case 'pbBrowseKSLMN':
+                caption = "Wskaż plik bazy KSLMN"
+                lineEdit = self.leKSLMN
 
-        # utility to quickly open desired directory either on Win, Mac or Linux
+        if caption is not None and lineEdit is not None:
+            directory = self.browseFiles(True, "ZIP Files (*.zip)", caption)
+            lineEdit.setText(directory)
 
-        ### utility functions group
+
+### utility functions group
+
+    # utility to quickly open desired directory either on Win, Mac or Linux
 
     def open_folder(self, folder_path):
         # Normalize the folder path and make sure it is absolute
@@ -115,20 +145,316 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 subprocess.Popen(['xdg-open', folder_path])
         except Exception as e:
             # Log the error or display a message
-            print(f"Error opening folder: {e}")
+            QgsMessageLog.logMessage(f"def open_folder - Error opening folder: {e}", "LMN2QGIS", Qgis.Critical)
+
+    # opens browse windows, for files == true browses files, for files == false browses directories
+    def browseFiles(self, files=False, file_types=None, browseCaption=None):
+        options = QtWidgets.QFileDialog.Options()
+
+        if files:
+            file, _ = QFileDialog.getOpenFileName(
+                parent=self,
+                caption=browseCaption,
+                directory=os.path.dirname(__file__),
+                filter=file_types,
+                options=options
+            )
+            return file
+        else:
+            directory = QFileDialog.getExistingDirectory(
+                parent=self,
+                caption=browseCaption,
+                directory=os.path.dirname(__file__),
+                options=options
+            )
+            return directory
 
     def unload(self):
-        if self.dialog:
-            self.dialog.close()  # Close the dialog if it's open
-            self.dialog = None  # Clear the reference
+        if hasattr(self, 'dialog') and self.dialog:
+            self.dialog.close()
+            self.dialog = None
 
     # utility for unzipping files
     # args:
     # file : provide fileName with full directory
     # dir  : provide directory where file should be unzipped
-    def unzip(self, file, dir):
-        with ZipFile(file, 'r') as zip:
-            zip.extractall(dir)
+    # def unzip_file(self, file, dir):
+    #    with ZipFile(file, 'r') as zip:
+    #       zip.extractall(dir)
+
+    def unzip_file(self, zip_file_path, target_directory, folder_key):
+
+        if folder_key == 'UNL':
+
+            unl_target_directory = target_directory + '/unl'
+            if zipfile.is_zipfile(zip_file_path):
+                try:
+                    # Open the zip file
+                    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                        # Extract all the contents into the target directory
+                        zip_ref.extractall(unl_target_directory)
+                        for file_name in os.listdir(unl_target_directory):
+                            subdir1 = os.path.join(unl_target_directory, file_name)
+                            if os.path.isdir(subdir1):
+                                # Check if 'unl' exists inside the subdir1
+                                unl_path = os.path.join(subdir1, 'unl')
+                                if os.path.isdir(unl_path):
+                                    # Move files from 'unl' folder to target_directory
+                                    for each_file in os.listdir(unl_path):
+                                        source_file = os.path.join(unl_path, each_file)
+                                        target_file = os.path.join(target_directory, each_file)
+                                        if os.path.isfile(source_file):
+                                            shutil.move(source_file, target_file)
+                                            QgsMessageLog.logMessage(f"def unzip_file - Moved: {source_file} → {target_file}",
+                                                                     "LMN2QGIS", Qgis.Info)
+                                    shutil.rmtree(unl_target_directory)
+
+                        QgsMessageLog.logMessage(f"def unzip_file - Successfully extracted {zip_file_path} to {target_directory}", "LMN2QGIS", Qgis.Info)
+                except Exception as e:
+                    QgsMessageLog.logMessage(f"def unzip_file - Error unzipping the file {zip_file_path}: {e}",
+                                             "LMN2QGIS", Qgis.Critical)
+            else:
+                QgsMessageLog.logMessage(f"def unzip_file - '{zip_file_path}' is not a valid zip file.", "LMN2QGIS", Qgis.Critical)
+
+        else:
+            if zipfile.is_zipfile(zip_file_path):
+                try:
+                    # Open the zip file
+                    with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                        # Extract all the contents into the target directory
+                        zip_ref.extractall(target_directory)
+                        QgsMessageLog.logMessage(f"Successfully extracted {zip_file_path} to {target_directory}",
+                                                 "LMN2QGIS", Qgis.Info)
+                except Exception as e:
+                    QgsMessageLog.logMessage(f"Error unzipping the file {zip_file_path}: {e}", "LMN2QGIS",
+                                             Qgis.Critical)
+            else:
+                QgsMessageLog.logMessage(f"{zip_file_path} is not a valid zip file.", "LMN2QGIS",
+                                         Qgis.Critical)
+
+    def loadData(self):
+        current_project = QgsProject.instance().fileName()
+        project_dir = os.path.dirname(current_project)
+
+        # Save currently opened project if one is open
+        if current_project:
+            QgsProject.instance().write()
+
+        # Clear the current project
+        QgsProject.instance().clear()
+
+        # Data paths from QLineEdits
+        dataPaths = {
+            'UNL': self.leUNL.text(),
+            'SLMN': self.leSLMN.text(),
+            'POCH': self.lePOCH.text(),
+            'KSLMN': self.leKSLMN.text()
+        }
+
+        unzip_directories = {
+            'UNL': '001_UNL',
+            'SLMN': '002_SLMN',
+            'POCH': '003_POCH',
+            'KSLMN': '004_KontroleSLMN'
+        }
+
+        # Unzip files into their respective directories
+        for key, path in dataPaths.items():
+            if path:  # Only process non-empty paths
+                # Join the project directory with the sub-directory name
+                directory = os.path.join(project_dir, unzip_directories.get(key))
+                if directory:
+                    try:
+                        # Ensure dir exists
+                        if not os.path.exists(directory):
+                            os.makedirs(directory)
+                        QgsMessageLog.logMessage(f"Unzipping {path} into {directory}",
+                                                 "LMN2QGIS", Qgis.Info)
+                        self.unzip_file(path, directory, key)  # Pass the key to handle special UNL case
+                    except Exception as e:
+                        QgsMessageLog.logMessage(f"Error unzipping {path}: {e}",
+                                                 "LMN2QGIS", Qgis.Critical)
+
+        # Reload the project if it was previously open
+        if current_project:
+            project_instance = QgsProject.instance()
+            if not project_instance.read(current_project):
+                QgsMessageLog.logMessage("Failed to reload the project file.","LMN2QGIS", Qgis.Critical)
+            else:
+                QgsMessageLog.logMessage("Project reloaded successfully.", "LMN2QGIS", Qgis.Info)
+
+#        self.set_layer_encoding()
+ #       self.set_layer_crs()
+  #      self.project_styler()
+
+    def on_pbExport_clicked(self):
+        # Log the start of the function
+        QgsMessageLog.logMessage("on_pbExport_clicked - Start", "LMN2QGIS", Qgis.Info)
+
+        # Get the current project directory
+        project_directory = os.path.dirname(QgsProject.instance().fileName())
+
+        # Define paths relative to the project directory
+        data_to_export_directory = os.path.join(project_directory, "002_SLMN")
+        QgsMessageLog.logMessage(
+            f"on_pbExport_clicked - directory where files to export are stored is: {data_to_export_directory}",
+            "LMN2QGIS", Qgis.Info)
+
+        export_directory = os.path.join(project_directory, '000_DoImportuSILP')
+        QgsMessageLog.logMessage(
+            f"on_pbExport_clicked - directory where files will be exported as zip: {export_directory}", "LMN2QGIS",
+            Qgis.Info)
+
+        # Ensure "000_DoImportuSILP" folder exists, create it if not
+        if not os.path.isdir(export_directory):
+            os.makedirs(export_directory)
+
+        # Check if "002_SLMN" folder exists
+        if not os.path.isdir(data_to_export_directory):
+            self.show_popup('Błąd', 'Folder 002_SLMN nie istnieje!')
+            return  # Stop the function if folder doesn't exist
+
+        # Check if "002_SLMN" folder is empty
+        elif len(os.listdir(data_to_export_directory)) == 0:
+            self.show_popup('Błąd', 'Folder 002_SLMN jest pusty!')
+            return  # Stop the function if folder is empty
+
+        # Get the current time for the zip file naming
+        time_tag = datetime.now()
+        export_filename = time_tag.strftime("%Y%m%d_%H.%M.%S.zip")
+
+        # Create a zip file containing all files in the "002_SLMN" folder
+        zip_file_path = os.path.join(export_directory, export_filename)
+
+        # Log before creating the zip file
+        QgsMessageLog.logMessage(f"on_pbExport_clicked - Creating zip file at: {zip_file_path}", "LMN2QGIS", Qgis.Info)
+
+        if not os.path.exists(zip_file_path):  # Check if the file already exists
+            with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, dirs, files in os.walk(data_to_export_directory):
+                    for file in files:
+                        # Generate the full path of the file and its relative path for zip
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, data_to_export_directory)
+
+                        # Log each file being added
+                        QgsMessageLog.logMessage(f"Adding file to zip: {arcname}", "LMN2QGIS", Qgis.Info)
+
+                        # Write the file to the zip (flatten the directory structure if desired)
+                        zipf.write(file_path, arcname)
+
+            QgsMessageLog.logMessage(f"on_pbExport_clicked - Zip file created: {zip_file_path}", "LMN2QGIS", Qgis.Info)
+        else:
+            QgsMessageLog.logMessage(f"on_pbExport_clicked - Zip file already exists: {zip_file_path}", "LMN2QGIS",
+                                     Qgis.Info)
+
+        # Open the folder (cross-platform way to open the folder)
+        if os.name == 'nt':  # Windows
+            subprocess.call(('cmd', '/c', 'start', '', export_directory))
+        elif os.name == 'posix':  # macOS / Linux
+            subprocess.call(('open', export_directory)) if sys.platform == 'darwin' else subprocess.call(
+                ('xdg-open', export_directory))
+
+        # Log the end of the function
+        QgsMessageLog.logMessage("on_pbExport_clicked - End", "LMN2QGIS", Qgis.Info)
+
+
+
+    def on_pbRecalcId_clicked(self):
+        # Step 1: Show initial hint
+        hint_msg = "This function will update the 'id' field by applying '$id + 1'.\nDo you want to continue?"
+        reply = QMessageBox.question(self, 'Recalculate ID', hint_msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+        if reply == QMessageBox.No:
+            return
+
+        # Step 2: Get the target layers
+        layer_names = ["a_pnsw_pow", "a_oddz_pol", "a_wydz_pol", "a_uzyt_pol", "a_dzew_pol", "a_les_pol"]
+        available_layers = {name: QgsProject.instance().mapLayersByName(name)[0] for name in layer_names if
+                            QgsProject.instance().mapLayersByName(name)}
+
+        if not available_layers:
+            QMessageBox.critical(self, "Error", "No matching layers found in the project.")
+            return
+
+        # Step 3: Display checkboxes for layer selection
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Layers to Update")
+        layout = QVBoxLayout()
+
+        checkboxes = {}
+        for layer_name, layer in available_layers.items():
+            checkbox = QCheckBox(layer_name)
+            checkbox.setChecked(True)
+            checkboxes[layer_name] = checkbox
+            layout.addWidget(checkbox)
+
+        ok_button = QPushButton("OK")
+        layout.addWidget(ok_button)
+        dialog.setLayout(layout)
+
+        def accept_selection():
+            dialog.accept()
+
+        ok_button.clicked.connect(accept_selection)
+        dialog.exec_()
+
+        # Step 4: Apply the expression to selected layers with progress tracking
+        selected_layers = [available_layers[name] for name, checkbox in checkboxes.items() if checkbox.isChecked()]
+
+        if not selected_layers:
+            QMessageBox.warning(self, "No Layers Selected", "No layers were selected for updating.")
+            return
+
+        expr = QgsExpression("$id + 1")
+
+        for layer in selected_layers:
+            if "id" not in [field.name() for field in layer.fields()]:
+                QMessageBox.critical(self, "Error", f"Layer '{layer.name()}' does not contain an 'id' field.")
+                return
+
+            # Start editing the layer
+            layer.startEditing()
+
+            # Get feature count
+            feature_count = layer.featureCount()
+            if feature_count == 0:
+                QgsMessageLog.logMessage(f"Layer {layer.name()} is empty.", "RecalculateID", Qgis.Warning)
+                continue
+
+            # Initialize progress bar
+            progress = QProgressDialog(f"Updating {layer.name()}...", "Cancel", 0, feature_count, self)
+            progress.setWindowTitle("Progress")
+            progress.setModal(True)
+            progress.show()
+
+            context = QgsExpressionContext()
+            context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+
+            updated_count = 0
+            for feature in layer.getFeatures(QgsFeatureRequest()):
+                if progress.wasCanceled():
+                    QMessageBox.warning(self, "Cancelled", "Operation was cancelled by the user.")
+                    layer.rollBack()
+                    return
+
+                context.setFeature(feature)
+                new_id = expr.evaluate(context)
+                layer.changeAttributeValue(feature.id(), layer.fields().lookupField("id"), new_id)
+
+                updated_count += 1
+                progress.setValue(updated_count)  # Update progress bar
+
+            # Commit changes
+            layer.commitChanges()
+            QgsMessageLog.logMessage(
+                f"Updated 'id' field in {layer.name()} ({updated_count}/{feature_count} features).", "RecalculateID",
+                Qgis.Info)
+
+        QMessageBox.information(self, "Success", "ID field has been updated for selected layers.")
+
+    def show_popup(self, title, message):
+        QMessageBox.warning(self, title, message)
 
     ###Plugin init functions
 
@@ -136,9 +462,8 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
     # if yes it will bring up a dialog and ask user if he wants to save project
     # if yes proceeds to save_project
     # if no continues to project_creation_wizard
-    def check_if_project_open(self): # ta funkcja musi być częśćiej uruchamiana przy ponownym uruchomieniu wtyczki!
-        if QgsProject.instance().isDirty() or QgsProject.instance().fileName() != "":
-
+    def check_if_project_open(self):
+        if QgsProject.instance().isDirty():
             msg_box = QtWidgets.QMessageBox()
             msg_box.setWindowTitle("Wykryto niezapisane zmiany")
             msg_box.setText("Wykryto nie zapisane zmiany, czy chcesz zapisać obecny projekt? Nie zapisanie projektu może skutkować utratą danych.")
@@ -150,17 +475,24 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             msg_box.exec()
 
             if msg_box.clickedButton() == tak_zapisz_button:
-                self.save_project(QgsProject.instance())
+                status = self.save_project(QgsProject.instance())
+                return status
             else:
-                self.project_creation_wizard()
-
+                status = self.project_creation_wizard()
+                return status
+        elif not QgsProject.instance().fileName():
+            status = self.project_creation_wizard()
+            return status
+        elif "Aktualizacja_" in QgsProject.instance().fileName():
+            return True
         else:
-            self.project_creation_wizard()
+            return True
 
     def save_project(self, project):
         if project.fileName():
             project.write()
-            print(f"Project saved at: {project.fileName()}")
+            QgsMessageLog.logMessage(f"Project saved at: {project.fileName()}", "LMN2QGIS", Qgis.Info)
+            return True
         else:
             options = QtWidgets.QFileDialog.Options()
 
@@ -176,22 +508,24 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
             if file_name:  # If the user selected a file
                 project.write(file_name)  # Save the project to the selected file
-                print(f"Project saved at: {file_name}")
+                QgsMessageLog.logMessage(f"Project saved at: {file_name}", "LMN2QGIS", Qgis.Info)
+                return True
 
             else:
                 self.check_if_project_open()
 
-    ### Project builder functions
+### Project builder functions
 
     # prompts user if he wants to build new project from scratch
     # if no exits plugin
     # if yes builds new project
+
     def project_creation_wizard(self):
-        # Step 1: Prompt user
         msg_box = QMessageBox()
         msg_box.setWindowTitle("Tworzenie nowego projektu")
         msg_box.setText(
-            "Czy chcesz utworzyć nowy projekt? Wybranie 'Nie' zakończy działanie wtyczki."
+            "Czy chcesz utworzyć nowy projekt? Jeśli wybrano nie, program poprosi o wskazanie istniejącego projektu. "
+            "Anulowanie zakończy działanie wtyczki."
         )
 
         tak_button = msg_box.addButton("Tak", QMessageBox.AcceptRole)
@@ -202,7 +536,9 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         if msg_box.clickedButton() == tak_button:
             # Prompt user to select directory for the new project
-            directory = QFileDialog.getExistingDirectory(self.iface.mainWindow(), "Select Directory")
+            ####### PL ZWERYFIKOWAĆ CZMEU DEFAULT ŚCIEŻKA JEST USTAWIONA NA MNIE!
+            directory = QFileDialog.getExistingDirectory(self.iface.mainWindow(), "Select Directory",
+                                                         "C:/Users/adam.kurzawinski/Documents/011_Geomatyka/007_Skrypty/004_lmn2qgis/000_daneTestowe")
 
             if not directory:
                 return  # User canceled the dialog
@@ -281,166 +617,188 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
             self.load_layers_from_csv(os.path.join(os.path.dirname(__file__), 'config', 'layer_references.csv'))
 
+            return True
         else:
+            # Step 1: Prompt user to select an existing QGIS project file
+            project_path, _ = QFileDialog.getOpenFileName(
+                self.iface.mainWindow(),
+                "Wybierz istniejący projekt QGIS",
+                "",
+                "QGIS Projects (*.qgz *.qgs)"
+            )
+
+            if project_path:
+                # Step 2a: Load the selected project
+                QgsProject.instance().read(project_path)
+
+                return True
+            else:
+                # Step 2b: User canceled, show message and close QGIS
+                QMessageBox.warning(
+                    self.iface.mainWindow(),
+                    "Błąd",
+                    "Nie wskazano istniejącego projektu, aby korzystać z wtyczki należy stworzyć nowy projekt lub uruchomić istniejący."
+                )
+                # Step 3: Stop the plugin execution
             self.unload()
+            return False
 
     def load_layers_from_csv(self, csv_file_path):
-        """Load layer definitions from a CSV file and organize them into corresponding groups"""
+        """Load layer definitions from a CSV file and organize them into corresponding groups."""
         project = QgsProject.instance()  # Get the current QGIS project
         layers_added = []  # To keep track of the added layers
 
         # Define the order of the groups explicitly
         group_order = ["001_UNL", "002_SLMN", "003_POCH", "004_KontroleSLMN"]
 
-        # Create the groups in the correct order (before entering the loop)
+        # Create groups in the correct order
         group_dict = {}  # Dictionary to hold the group references
         root = project.layerTreeRoot()
 
-        # Create groups first
         for group_code in group_order:
-            group = QgsLayerTreeGroup(group_code)
-            root.addChildNode(group)
-            group_dict[group_code] = group
+            if not root.findGroup(group_code):
+                group = QgsLayerTreeGroup(group_code)
+                root.addChildNode(group)
+                group_dict[group_code] = group
+            else:
+                group_dict[group_code] = root.findGroup(group_code)
 
         # Open the CSV file and read the data
         with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
 
-            # Iterate through each row in the CSV file
             for row in reader:
                 layer_name = row['name']
-                layer_type = int(row['type'])
+                layer_type = int(row['type']) if row['type'].isdigit() else None
                 crs = row['crs']
-                geometry_type = int(row['geometry_type'])
+                geometry_type = int(row['geometry_type']) if row['geometry_type'].isdigit() else None
                 provider_type = row['provider_type']
                 source = row['source']
+                filename = row['filename']
 
-                # Check if CRS is valid
                 crs_obj = QgsCoordinateReferenceSystem(crs) if crs else None
 
-                # Create an empty layer (without attempting to load data)
                 layer = None
-                if provider_type == 'memory':
-                    # Handle memory layers (create an empty layer)
-                    uri = "Point?crs=" + crs if crs else "Point"  # Example for creating an empty memory layer
-                    layer = QgsVectorLayer(uri, layer_name, "memory")
 
-                elif provider_type == 'ogr':
-                    # Handle OGR provider (e.g., shapefiles) - create a placeholder for the layer
+                if provider_type == 'ogr':
+                    # Handle OGR provider (e.g., shapefiles)
                     if source in group_dict:
-                        # Construct an invalid URI that points to a missing shapefile
-                        layer_path = os.path.join(project.fileName(), source, f"{layer_name}.shp")
-                        uri = f"ogr:{layer_path}"
-                        layer = QgsVectorLayer(uri, layer_name, "ogr")
-                    else:
-                        print(f"Unsupported group: {source} for layer {layer_name}")
-                        continue
+                        layer_path = os.path.join(os.path.dirname(project.fileName()), source, f"{filename}.shp")
+                        uri = f"{layer_path}"
+
+                        if os.path.exists(layer_path):
+                            layer = QgsVectorLayer(uri, layer_name, "ogr")
+                        else:
+                            # Create a placeholder layer with an invalid source
+
+                            layer = QgsVectorLayer(f"{layer_path}", layer_name, "ogr")
 
                 elif provider_type == 'delimitedtext':
-                    # Handle delimited text (CSV files) - create a placeholder for the layer
+                    # Handle delimited text layers
                     if source == "001_UNL":
-                        layer_path = os.path.join(project.fileName(), source, "unl", f"{layer_name}.txt")
-                        uri = f"delimitedtext:{layer_path}"
-                        layer = QgsVectorLayer(uri, layer_name, "delimitedtext")
+                        layer_path = os.path.join(os.path.dirname(project.fileName()), source, f"{filename}.txt")
+                        uri = f"{QUrl.fromLocalFile(layer_path).toString()}?delimiter=|&crs={crs}"
 
-                        # Set delimiter for delimited text layers only
-                        if layer.isValid():
-                            layer.setDelimiter('|')
-                    else:
-                        print(f"Invalid group for delimited text layer: {source}")
-                        continue
+                        if os.path.exists(layer_path):
+                            layer = QgsVectorLayer(uri, layer_name, "delimitedtext")
+                        else:
+                            QgsMessageLog.logMessage(
+                                f"Warning: Source file missing for layer {layer_name} at {layer_path}", "LMN2QGIS",
+                                Qgis.Warning)
+
+                            layer = QgsVectorLayer(uri, layer_name, "delimitedtext")
+
                 else:
-                    print(f"Unsupported provider type: {provider_type} for layer {layer_name}")
+                    QgsMessageLog.logMessage(f"Unsupported provider type: {provider_type} for layer {layer_name}",
+                                             "LMN2QGIS", Qgis.Warning)
                     continue
 
-                # Check if the layer is created successfully (even if it's empty or invalid)
+                # Add the layer even if it's invalid (it will show as broken in QGIS)
                 if layer:
-                    # Set CRS if available
-                    if crs_obj:
+                    # Set CRS explicitly if available
+                    if crs_obj and layer.isValid():
                         layer.setCrs(crs_obj)
 
-                    # Get the corresponding group name for the layer
-                    folder_code = source  # Get the folder code (group name)
+                    # Add to corresponding group
+                    folder_code = source
                     if folder_code in group_dict:
-                        # Add the layer reference (even though it's empty) to the corresponding group
                         group_dict[folder_code].addChildNode(QgsLayerTreeLayer(layer))
-
-                    layers_added.append(layer_name)
-
+                        project.addMapLayer(layer, False)
+                        layers_added.append(layer_name)
                 else:
-                    print(f"Failed to load layer {layer_name} from {source}")
+                    QgsMessageLog.logMessage(f"Failed to load layer {layer_name}. Invalid configuration or missing file.",
+                                             "LMN2QGIS", Qgis.Warning)
 
-        # Provide feedback on which layers were added
-        print(f"Layers added: {', '.join(layers_added)}")
+        # Provide feedback
+        QgsMessageLog.logMessage(f"Layers added: {', '.join(layers_added)}", "LMN2QGIS",
+                                 Qgis.Info)
 
-    def project_styler(self,project_path):
-        print(project_path)
+        self.set_layer_encoding()
+        self.set_layer_crs()
+        self.project_styler()
 
-    ### Data management functions
+    def set_layer_encoding(self, encoding: str = 'CP1250'):
+        # Iterate through all layers in the project
+        project = QgsProject.instance()
+        layers = project.mapLayers().values()
 
-    def import_data(self):
-        print("placeHolder")
+        for layer in layers:
+            # Only process vector layers (we're concerned with encoding)
+            if isinstance(layer, QgsVectorLayer):
+                # Set the provider encoding for the layer
+                layer.setProviderEncoding(encoding)
+                QgsMessageLog.logMessage(f"Set encoding to {encoding} for layer: {layer.name()}",
+                                         "LMN2QGIS", Qgis.Info)
 
-    ### Dev utility functions
+    def set_layer_crs(self, epsg: str = "EPSG:2180"):
+        # Iterate through all layers in the project
+        project = QgsProject.instance()
+        layers = project.mapLayers().values()
 
-    def get_layer_info(self, layer):
-        """Gather information about each layer and modify the source based on the folder name"""
-        # Get the data source URI for the layer
-        source_uri = layer.dataProvider().dataSourceUri() if layer.isValid() else None
+        for layer in layers:
+            # Only process vector layers (we're concerned with encoding)
+            if isinstance(layer, QgsVectorLayer):
+                # Set CRS for the layer
+                crs = QgsCoordinateReferenceSystem(epsg)
+                layer.setCrs(crs)
+                QgsMessageLog.logMessage(f"Set encoding to {epsg} for layer: {layer.name()}",
+                                         "LMN2QGIS", Qgis.Info)
 
-        # Initialize the folder code as None (in case no match is found)
-        folder_code = None
+    def project_styler(self):
+        # Get the current QGIS project
 
-        # Check if the layer source exists and is a valid URI
-        if source_uri:
-            # Extract the folder name from the source path
-            folder_name = os.path.basename(os.path.dirname(source_uri))
-
-            # Assign the corresponding folder code based on folder name
-            if "unl" in folder_name:
-                folder_code = "001_UNL"
-            elif "SLMN" in folder_name:
-                folder_code = "002_SLMN"
-            elif "Pochodne_stare" in folder_name:
-                folder_code = "003_POCH"
-            elif "Kontrola" in folder_name:
-                folder_code = "004_KontroleSLMN"
-
-        # Return the layer information along with the folder code as the source
-        layer_info = {
-            'name': layer.name(),
-            'type': layer.type(),
-            'crs': layer.crs().authid() if layer.crs() else None,
-            'geometry_type': layer.geometryType(),
-            'provider_type': layer.dataProvider().name(),
-            'source': folder_code,  # Store the folder code instead of the full path
-        }
-        return layer_info
-
-    def create_layers_csv(self, output_file):
-        """Create CSV with layer information"""
-        project = QgsProject.instance()  # Get the current QGIS project
+        style_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config")
+        QgsMessageLog.logMessage("Starting project_styler", "LMN2QGIS", Qgis.Info)
+        project = QgsProject.instance()
         layers = project.mapLayers().values()  # Get all layers in the project
 
-        # Ensure the output directory exists
-        output_directory = os.path.dirname(output_file)
-        if not os.path.exists(output_directory):
-            os.makedirs(output_directory)
+        # Iterate over each layer
+        for layer in layers:
+            # Skip layers that don't have a valid name or style
+            if not layer.isValid() or layer.name() == "":
+                QgsMessageLog.logMessage(f"Invalid layer '{layer.name()}', skipping", "LMN2QGIS", Qgis.Warning)
+                continue
 
-        # Open the CSV file to write the data
-        with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['name', 'type', 'crs', 'geometry_type', 'provider_type', 'source']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            # Define the path to the corresponding style file based on the layer name
+            style_file_path = os.path.join(style_directory, f"{layer.name()}.qml")
+            QgsMessageLog.logMessage(f"style_file_path = '{style_file_path}'", "LMN2QGIS", Qgis.Info)
+            log_status = os.path.exists(style_file_path)
+            QgsMessageLog.logMessage(f"style_file_path check = '{log_status}'", "LMN2QGIS", Qgis.Info)
 
-            # Write the header
-            writer.writeheader()
+            # Check if the style file exists
+            if os.path.exists(style_file_path):
+                try:
+                    # Apply the saved style to the layer
+                    if isinstance(layer, QgsVectorLayer):
+                        layer.loadNamedStyle(style_file_path)
+                        layer.triggerRepaint()  # Refresh the layer to apply the style
+                        QgsMessageLog.logMessage(f"Applied style for vector layer '{layer.name()}' from {style_file_path}",
+                                                 "LMN2QGIS", Qgis.Info)
 
-            # Iterate over layers in the project
-            for layer in layers:
-                # Get layer information
-                layer_info = self.get_layer_info(layer)
+                except Exception as e:
+                    QgsMessageLog.logMessage(f"Failed to apply style for layer '{layer.name()}': {e}",
+                                             "LMN2QGIS", Qgis.Info)
+            else:
+                QgsMessageLog.logMessage(f"Style file for layer '{layer.name()}' not found at {style_file_path}",
+                                         "LMN2QGIS", Qgis.Info)
 
-                # Write the layer info to the CSV
-                writer.writerow(layer_info)
-
-        print(f"Layer information saved to {output_file}")

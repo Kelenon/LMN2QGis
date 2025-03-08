@@ -179,22 +179,34 @@ class Lmn2Qgis:
                 action)
             self.iface.removeToolBarIcon(action)
 
-
     def run(self):
         """Run method that performs all the real work"""
 
-        # Create the dialog with elements (after translation) and keep reference
+        # Check if the dialog already exists and is open
+        if hasattr(self, 'dlg') and self.dlg is not None:
+            if self.dlg.isVisible():
+                # Bring the existing dialog to the front
+                self.dlg.raise_()
+                self.dlg.activateWindow()
+                return
+
         # Only create GUI ONCE in callback, so that it will only load when the plugin is started
-        if self.first_start == True:
+        if self.first_start:
             self.first_start = False
             self.dlg = Lmn2QgisDialog(self.iface)
 
-        # show the dialog
-        self.dlg.show()
-        # Run the dialog event loop
-        result = self.dlg.exec_()
-        # See if OK was pressed
-        if result:
-            # Do something useful here - delete the line containing pass and
-            # substitute with your code.
-            pass
+        project_exists = self.dlg.check_if_project_open()
+
+        if project_exists:
+            self.dlg.show()
+            self.dlg.raise_()
+            self.dlg.activateWindow()
+
+            # Run the dialog event loop
+            result = self.dlg.exec_()
+
+            # See if OK was pressed
+            if result:
+                # Do something useful here
+                pass
+

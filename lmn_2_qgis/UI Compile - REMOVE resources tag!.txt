@@ -1,0 +1,7 @@
+Otwórz plik .ui w notepad
+
+usuń część
+
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
