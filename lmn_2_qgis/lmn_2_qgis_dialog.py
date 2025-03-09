@@ -56,6 +56,9 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
         # Set the window icon
         self.setWindowIcon(QtGui.QIcon(":/plugins/lmn_2_qgis/icon.png"))
 
+        # Default working directory
+        self.storage_directory = None
+
         # dialog elemets connections to functions
         self.pbCancel.clicked.connect(self.on_pbButton_clicked)
         self.pbClear.clicked.connect(self.on_pbButton_clicked)
@@ -117,7 +120,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 lineEdit = self.leKSLMN
 
         if caption is not None and lineEdit is not None:
-            directory = self.browseFiles(True, "ZIP Files (*.zip)", caption)
+            directory = self.browseFiles(True, "ZIP Files (*.zip)", caption, self.storage_directory)
             lineEdit.setText(directory)
 
 
@@ -350,31 +353,33 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
 
     def on_pbRecalcId_clicked(self):
-        # Step 1: Show initial hint
-        hint_msg = "This function will update the 'id' field by applying '$id + 1'.\nDo you want to continue?"
-        reply = QMessageBox.question(self, 'Recalculate ID', hint_msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
-        if reply == QMessageBox.No:
+        hint_msg = "Ta funkcja zaktualizuje pole 'id' wskazanych warstw stosując wyrażenie '$id + 1'.\nZaleca się uruchomienie tej funkcji przed importem do SILP jeśli" \
+                   "w trakcie edycji warstwy usuwano lub dodawano obiekty.\nW przeciwnym razie w trakcie importu może wystąpić błąd.\nCzy chcesz kontynuować? Przeliczanie id" \
+                   " w zależności od komputera może potrwać kilka a nawet kilkanaście minut."
+
+        reply = self.show_decision_msg_box('Przelicz ID', hint_msg)
+
+        if reply == False:
             return
 
-        # Step 2: Get the target layers
         layer_names = ["a_pnsw_pow", "a_oddz_pol", "a_wydz_pol", "a_uzyt_pol", "a_dzew_pol", "a_les_pol"]
         available_layers = {name: QgsProject.instance().mapLayersByName(name)[0] for name in layer_names if
                             QgsProject.instance().mapLayersByName(name)}
 
         if not available_layers:
-            QMessageBox.critical(self, "Error", "No matching layers found in the project.")
+            QMessageBox.critical(self, "Błąd", "Nie znaleziono właściwych warstw w projekcie.")
             return
 
-        # Step 3: Display checkboxes for layer selection
+
         dialog = QDialog(self)
-        dialog.setWindowTitle("Select Layers to Update")
+        dialog.setWindowTitle("Wybierz warstwy")
         layout = QVBoxLayout()
 
         checkboxes = {}
         for layer_name, layer in available_layers.items():
             checkbox = QCheckBox(layer_name)
-            checkbox.setChecked(True)
+            checkbox.setChecked(False)
             checkboxes[layer_name] = checkbox
             layout.addWidget(checkbox)
 
@@ -388,32 +393,29 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
         ok_button.clicked.connect(accept_selection)
         dialog.exec_()
 
-        # Step 4: Apply the expression to selected layers with progress tracking
         selected_layers = [available_layers[name] for name, checkbox in checkboxes.items() if checkbox.isChecked()]
 
         if not selected_layers:
-            QMessageBox.warning(self, "No Layers Selected", "No layers were selected for updating.")
+            QMessageBox.warning(self, "Nie wskazano warstw", "Nie wskazano warstw do aktualizacji.")
             return
 
         expr = QgsExpression("$id + 1")
 
         for layer in selected_layers:
             if "id" not in [field.name() for field in layer.fields()]:
-                QMessageBox.critical(self, "Error", f"Layer '{layer.name()}' does not contain an 'id' field.")
+                QMessageBox.critical(self, "Błąd", f"Warstwa '{layer.name()}' nie zawiera pola 'id'.")
                 return
 
-            # Start editing the layer
             layer.startEditing()
 
-            # Get feature count
             feature_count = layer.featureCount()
             if feature_count == 0:
                 QgsMessageLog.logMessage(f"Layer {layer.name()} is empty.", "RecalculateID", Qgis.Warning)
                 continue
 
             # Initialize progress bar
-            progress = QProgressDialog(f"Updating {layer.name()}...", "Cancel", 0, feature_count, self)
-            progress.setWindowTitle("Progress")
+            progress = QProgressDialog(f"Aktualizacja warstwy {layer.name()}...", "Przerwij", 0, feature_count, self)
+            progress.setWindowTitle("Postęp")
             progress.setModal(True)
             progress.show()
 
@@ -423,7 +425,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             updated_count = 0
             for feature in layer.getFeatures(QgsFeatureRequest()):
                 if progress.wasCanceled():
-                    QMessageBox.warning(self, "Cancelled", "Operation was cancelled by the user.")
+                    QMessageBox.warning(self, "Anulowano operację", "Operacja została wstrzymana przez użytkownika.")
                     layer.rollBack()
                     return
 
@@ -440,7 +442,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 f"Updated 'id' field in {layer.name()} ({updated_count}/{feature_count} features).", "RecalculateID",
                 Qgis.Info)
 
-        QMessageBox.information(self, "Success", "ID field has been updated for selected layers.")
+        QMessageBox.information(self, "Sukces", "Przeliczono id dla wskazanych warstw.")
 
 
 
@@ -512,6 +514,11 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             if not os.path.exists(working_directory):
                 try:
                     os.makedirs(working_directory)
+                    self.storage_directory = os.path.join(working_directory,'000_Exporty_z_SILP')
+                    os.makedirs(self.storage_directory)
+                    for folder in ["001_UNL", "002_SLMN", "003_POCH", "004_KontroleSLMN"]:
+                        os.makedirs(os.path.join(self.storage_directory, folder))
+
                     QMessageBox.information(None, "Sukces", f"Folder '{folder_name}' został utworzony.")
                     return working_directory
                 except OSError as e:
@@ -535,7 +542,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
             if not os.path.exists(project_directory):
                 try:
-                    os.makedirs(project_directory, exist_ok=True)
+                    os.makedirs(project_directory)
                     break
                 except OSError as e:
                     QgsMessageLog.logMessage(f"Błąd tworzenia katalogu: {e}", "LMN2QGIS", Qgis.Critical)
@@ -604,7 +611,8 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def open_project(self, project_path, project_directory):
         """Opens the selected QGIS project and the corresponding directory."""
         if os.path.exists(project_path):
-            self.iface.addProject(project_path)
+            #self.iface.addProject(project_path)
+            QgsProject.instance().read(project_path)
             if project_directory:
                 os.startfile(project_directory)  # Opens directory in file explorer
             QgsMessageLog.logMessage(f"Otworzono projekt: {project_path}", "LMN2QGIS", Qgis.Info)
@@ -625,7 +633,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 f.write("")
 
         with open(config_file, 'r') as f:
-            working_directory = f.read().strip()
+            working_directory = f.read().strip() or None
 
         if not working_directory or not os.path.exists(working_directory):
             working_directory = self.create_working_directory()
@@ -648,7 +656,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
     # Utilities
 
     def show_popup(self, title, message):
-        QMessageBox.warning(self, title, message)
+        QMessageBox.warning(self.iface.mainWindow(), title, message)
 
     def show_decision_msg_box(self, title, message):
         msg_box = QMessageBox()
