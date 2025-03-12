@@ -8,7 +8,7 @@
                               -------------------
         begin                : 2024-11-26
         git sha              : $Format:%H$
-        copyright            : (C) 2024 by Adam Kurzawiński
+        copyright            : (C) 2025 by Adam Kurzawiński
         email                : adam.kurzawinski@katowice.lasy.gov.pl
  ***************************************************************************/
 
