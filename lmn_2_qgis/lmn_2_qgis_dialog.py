@@ -66,6 +66,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pbBrowseSLMN.clicked.connect(self.on_pbButton_clicked)
         self.pbBrowsePOCH.clicked.connect(self.on_pbButton_clicked)
         self.pbBrowseKSLMN.clicked.connect(self.on_pbButton_clicked)
+        self.pbBrowseSzkice.clicked.connect(self.on_pbButton_clicked)
         self.pbLoad.clicked.connect(self.on_pbButton_clicked)
         self.pbExport.clicked.disconnect()
         self.pbExport.clicked.connect(self.on_pbExport_clicked)
@@ -107,17 +108,20 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.loadData()
 
             case 'pbBrowseUNL':
-                caption = "Wskaż plik bazy UNL"
+                caption = "Wskaż plik zip bazy UNL"
                 lineEdit = self.leUNL
             case 'pbBrowseSLMN':
-                caption = "Wskaż plik bazy SLMN"
+                caption = "Wskaż plik zip danych w standardzie SLMN"
                 lineEdit = self.leSLMN
             case 'pbBrowsePOCH':
-                caption = "Wskaż plik bazy POCH"
+                caption = "Wskaż plik zip z pochodnymi"
                 lineEdit = self.lePOCH
             case 'pbBrowseKSLMN':
-                caption = "Wskaż plik bazy KSLMN"
+                caption = "Wskaż plik zip kontroli standardu LMN"
                 lineEdit = self.leKSLMN
+            case 'pbBrowseSzkice':
+                caption = "Wskaż plik zip projektu mLas"
+                lineEdit = self.leSzkice
 
         if caption is not None and lineEdit is not None:
             directory = self.browseFiles(True, "ZIP Files (*.zip)", caption, self.storage_directory)
@@ -182,7 +186,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         if folder_key == 'UNL':
 
-            unl_target_directory = target_directory + '/unl'
+            unl_target_directory = os.path.join(target_directory,'unl')
             if zipfile.is_zipfile(zip_file_path):
                 try:
                     # Open the zip file
@@ -212,6 +216,24 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 QgsMessageLog.logMessage(f"def unzip_file - '{zip_file_path}' is not a valid zip file.", "LMN2QGIS", Qgis.Critical)
 
+
+        elif folder_key == 'mLAS':
+            QgsMessageLog.logMessage(f"Processing mLAS extraction from {zip_file_path} to {target_directory}","LMN2QGIS", Qgis.Info)
+
+            try:
+                with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                    found_files = [file for file in zip_ref.namelist() if os.path.basename(file).startswith("szkic_")]
+                    if not found_files:
+                        QgsMessageLog.logMessage("No szkic_ files found in the ZIP archive.", "LMN2QGIS", Qgis.Warning)
+                        return
+
+                    for file in found_files:
+                        output_path = os.path.join(target_directory, os.path.basename(file))  # Flatten extraction
+                        with zip_ref.open(file) as source, open(output_path, "wb") as dest:
+                            dest.write(source.read())
+                        QgsMessageLog.logMessage(f"Extracted szkic_ file: {file} → {output_path}", "LMN2QGIS", Qgis.Info)
+            except Exception as e:
+                QgsMessageLog.logMessage(f"Error extracting szkic_ files: {e}", "LMN2QGIS", Qgis.Critical)
         else:
             if zipfile.is_zipfile(zip_file_path):
                 try:
@@ -244,14 +266,16 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             'UNL': self.leUNL.text(),
             'SLMN': self.leSLMN.text(),
             'POCH': self.lePOCH.text(),
-            'KSLMN': self.leKSLMN.text()
+            'KSLMN': self.leKSLMN.text(),
+            'mLAS': self.leSzkice.text()
         }
 
         unzip_directories = {
             'UNL': os.path.join('001_UNL','unl'),
             'SLMN': '002_SLMN',
             'POCH': '003_POCH',
-            'KSLMN': '004_KontroleSLMN'
+            'KSLMN': '004_KontroleSLMN',
+            'mLAS': '005_ObiektySzkicownika'
         }
 
         # Unzip files into their respective directories
@@ -278,6 +302,26 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 QgsMessageLog.logMessage("Failed to reload the project file.","LMN2QGIS", Qgis.Critical)
             else:
                 QgsMessageLog.logMessage("Project reloaded successfully.", "LMN2QGIS", Qgis.Info)
+
+        # Get the layer by name
+        layer_name = 'a_oddz_pol'  # Replace with your layer name
+        layer = QgsProject.instance().mapLayersByName(layer_name)
+
+        if layer:
+            layer = layer[0]  # Get the first layer with that name
+            # Get the extent of the layer
+            extent = layer.extent()
+
+            # Get the map canvas
+            canvas = self.iface.mapCanvas()
+
+            # Set the canvas extent to the layer's extent
+            canvas.setExtent(extent)
+
+            # Refresh the canvas to update the view
+            canvas.refresh()
+        else:
+            print(f"Layer '{layer_name}' not found.")
 
     def on_pbExport_clicked(self):
         # Log the start of the function
@@ -500,39 +544,44 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 ### Project builder functions
 
     def create_working_directory(self):
+
         QgsMessageLog.logMessage(f"def project_creation_wizard - user designates new working directory", "LMN2QGIS", Qgis.Info)
         self.show_popup("Nie odnaleziono katalogu roboczego", r"Wskaż katalog, w którym przechowywane będą projekty. Zaleca się aby katalog znajdował się na profilu użytkowniku np. 'C:\Użytkownicy\nazwa.użytkownika\Dokumenty\AktualizacjaLMN'")
-        working_directory = self.browseFiles(False, None, "Wskaż katalog roboczy")
+
+        QgsMessageLog.logMessage("User prompted to create/select working directory", "LMN2QGIS", Qgis.Info)
+
+        working_directory = QFileDialog.getExistingDirectory(
+            None,
+            "Wybierz lub utwórz katalog roboczy",
+            os.path.expanduser("~"),
+            QFileDialog.ShowDirsOnly | QFileDialog.DontUseNativeDialog
+        )
 
         if not working_directory:
-            QgsMessageLog.logMessage("Użytkownik anulował wybór katalogu roboczego.", "LMN2QGIS", Qgis.Warning)
+            QgsMessageLog.logMessage("User canceled directory selection.", "LMN2QGIS", Qgis.Warning)
             return False
 
-        folder_name, ok = QInputDialog.getText(None, "AktualizacjaLMN", "Podaj nazwę katalogu roboczego, w którym przechowywane będą projekty oraz dane SILP")
-        if ok and folder_name.strip():
-            working_directory = os.path.join(working_directory, folder_name.strip())
+        # Ensure directory exists (in case user typed a name manually)
+        try:
             if not os.path.exists(working_directory):
-                try:
-                    os.makedirs(working_directory)
-                    self.storage_directory = os.path.join(working_directory,'000_Exporty_z_SILP')
-                    os.makedirs(self.storage_directory)
-                    for folder in ["001_UNL", "002_SLMN", "003_POCH", "004_KontroleSLMN"]:
-                        os.makedirs(os.path.join(self.storage_directory, folder))
+                os.makedirs(working_directory)
 
-                    QMessageBox.information(None, "Sukces", f"Folder '{folder_name}' został utworzony.")
-                    return working_directory
-                except OSError as e:
-                    QgsMessageLog.logMessage(f"Błąd tworzenia katalogu: {e}", "LMN2QGIS", Qgis.Critical)
-                    return False
-            else:
-                QMessageBox.warning(None, "Błąd", f"Folder '{folder_name}' już istnieje.")
-                return working_directory
-        else:
-            QMessageBox.warning(None, "Błąd", "Nie podano nazwy folderu.")
+            self.storage_directory = os.path.join(working_directory, "000_Exporty_z_SILP")
+            os.makedirs(self.storage_directory, exist_ok=True)
+
+            for subdir in ["001_UNL", "002_SLMN", "003_POCH", "004_KontroleSLMN", "005_ObiektySzkicownika"]:
+                os.makedirs(os.path.join(self.storage_directory, subdir), exist_ok=True)
+
+            QMessageBox.information(None, "Sukces", f"Katalog roboczy '{working_directory}' został utworzony lub wybrany.")
+            return working_directory
+
+        except OSError as e:
+            QgsMessageLog.logMessage(f"Error creating directory: {e}", "LMN2QGIS", Qgis.Critical)
+            QMessageBox.critical(None, "Błąd", f"Nie udało się utworzyć katalogu: {e}")
             return False
 
     def create_project(self, working_directory):
-        """Creates a new project directory with a unique name and copies the QGIS template file."""
+
         current_date = datetime.now().strftime("%d-%m-%Y")
         max_attempts = 10
 
@@ -579,7 +628,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             QgsMessageLog.logMessage(f"Błąd kopiowania pliku: {e}", "LMN2QGIS", Qgis.Critical)
             return False
 
-        subdirectories = ["001_UNL", "002_SLMN", "003_POCH", "004_KontroleSLMN"]
+        subdirectories = ["001_UNL", "002_SLMN", "003_POCH", "004_KontroleSLMN", "005_ObiektySzkicownika"]
         for subdir in subdirectories:
             try:
                 os.makedirs(os.path.join(project_directory, subdir), exist_ok=True)
@@ -592,7 +641,6 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
         return True
 
     def select_project(self, working_directory):
-        """Prompts user to select an existing QGIS project file and opens it."""
 
         project_path, _ = QFileDialog.getOpenFileName(
             self.iface.mainWindow(),
@@ -609,7 +657,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
         return False
 
     def open_project(self, project_path, project_directory):
-        """Opens the selected QGIS project and the corresponding directory."""
+
         if os.path.exists(project_path):
             #self.iface.addProject(project_path)
             QgsProject.instance().read(project_path)
