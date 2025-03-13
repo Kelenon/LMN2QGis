@@ -96,6 +96,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.leSLMN.clear()
                 self.lePOCH.clear()
                 self.leKSLMN.clear()
+                self.leSzkice.clear()
                 self.close()
 
             case 'pbClear':
@@ -103,6 +104,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.leSLMN.clear()
                 self.lePOCH.clear()
                 self.leKSLMN.clear()
+                self.leSzkice.clear()
 
             case 'pbLoad':
                 self.loadData()
@@ -324,76 +326,73 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             print(f"Layer '{layer_name}' not found.")
 
     def on_pbExport_clicked(self):
-        # Log the start of the function
         QgsMessageLog.logMessage("on_pbExport_clicked - Start", "LMN2QGIS", Qgis.Info)
 
-        # Get the current project directory
         project_directory = os.path.dirname(QgsProject.instance().fileName())
 
-        # Define paths relative to the project directory
         data_to_export_directory = os.path.join(project_directory, "002_SLMN")
-        QgsMessageLog.logMessage(
-            f"on_pbExport_clicked - directory where files to export are stored is: {data_to_export_directory}",
-            "LMN2QGIS", Qgis.Info)
+        export_directory = os.path.join(project_directory, "000_DoImportuSILP")
 
-        export_directory = os.path.join(project_directory, '000_DoImportuSILP')
-        QgsMessageLog.logMessage(
-            f"on_pbExport_clicked - directory where files will be exported as zip: {export_directory}", "LMN2QGIS",
-            Qgis.Info)
-
-        # Ensure "000_DoImportuSILP" folder exists, create it if not
         if not os.path.isdir(export_directory):
             os.makedirs(export_directory)
 
-        # Check if "002_SLMN" folder exists
         if not os.path.isdir(data_to_export_directory):
-            self.show_popup('Błąd', 'Folder 002_SLMN nie istnieje!')
-            return  # Stop the function if folder doesn't exist
+            self.show_popup("Błąd", "Folder 002_SLMN nie istnieje!")
+            return
 
-        # Check if "002_SLMN" folder is empty
-        elif len(os.listdir(data_to_export_directory)) == 0:
-            self.show_popup('Błąd', 'Folder 002_SLMN jest pusty!')
-            return  # Stop the function if folder is empty
+        if len(os.listdir(data_to_export_directory)) == 0:
+            self.show_popup("Błąd", "Folder 002_SLMN jest pusty!")
+            return
 
-        # Get the current time for the zip file naming
-        time_tag = datetime.now()
-        export_filename = time_tag.strftime("%Y%m%d_%H.%M.%S.zip")
+        shapefile_names = {
+            "a_pnsw_pow", "a_oddz_pol", "a_wydz_pol",
+            "a_uzyt_pol", "a_dzew_pol", "a_les_pol"
+        }
 
-        # Create a zip file containing all files in the "002_SLMN" folder
-        zip_file_path = os.path.join(export_directory, export_filename)
+        # **User choice: Zip entire folder or specific shapefiles**
+        choice = self.show_decision_msg_box("Export do zip", f"Wybierz 'Eksportuj wybrane' aby wyeksportować paczkę zawierającą tylko pliki warstw\n\n{shapefile_names}.\n\nOpcja 'Pełny eksport' utworzy paczkę zawierającą wszystkie pliki SLMN", "Eksportuj wybrane", "Pełny eksport")
 
-        # Log before creating the zip file
-        QgsMessageLog.logMessage(f"on_pbExport_clicked - Creating zip file at: {zip_file_path}", "LMN2QGIS", Qgis.Info)
+        # **Zip file name with timestamp**
+        time_tag = datetime.now().strftime("%Y%m%d_%H.%M.%S.zip")
+        zip_file_path = os.path.join(export_directory, time_tag)
 
-        if not os.path.exists(zip_file_path):  # Check if the file already exists
-            with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for root, dirs, files in os.walk(data_to_export_directory):
+        if choice == False:  # **User chose to zip entire folder**
+            QgsMessageLog.logMessage(f"Zipping entire folder: {data_to_export_directory}", "LMN2QGIS", Qgis.Info)
+            with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                for root, _, files in os.walk(data_to_export_directory):
                     for file in files:
-                        # Generate the full path of the file and its relative path for zip
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, data_to_export_directory)
-
-                        # Log each file being added
-                        QgsMessageLog.logMessage(f"Adding file to zip: {arcname}", "LMN2QGIS", Qgis.Info)
-
-                        # Write the file to the zip (flatten the directory structure if desired)
                         zipf.write(file_path, arcname)
+                        QgsMessageLog.logMessage(f"Added file: {arcname}", "LMN2QGIS", Qgis.Info)
 
-            QgsMessageLog.logMessage(f"on_pbExport_clicked - Zip file created: {zip_file_path}", "LMN2QGIS", Qgis.Info)
-        else:
-            QgsMessageLog.logMessage(f"on_pbExport_clicked - Zip file already exists: {zip_file_path}", "LMN2QGIS",
-                                     Qgis.Info)
+        else:  # **User chose to zip specific shapefiles**
+            QgsMessageLog.logMessage("Zipping only selected SHP files...", "LMN2QGIS", Qgis.Info)
+            with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                added_files = 0
+                for root, _, files in os.walk(data_to_export_directory):
+                    for file in files:
+                        file_base, ext = os.path.splitext(file)
+                        if ext.lower() in {".shp", ".dbf", ".shx", ".prj"} and file_base.lower() in shapefile_names:
+                            file_path = os.path.join(root, file)
+                            arcname = os.path.relpath(file_path, data_to_export_directory)
+                            zipf.write(file_path, arcname)
+                            added_files += 1
+                            QgsMessageLog.logMessage(f"Added file: {arcname}", "LMN2QGIS", Qgis.Info)
 
-        # Open the folder (cross-platform way to open the folder)
-        if os.name == 'nt':  # Windows
-            subprocess.call(('cmd', '/c', 'start', '', export_directory))
-        elif os.name == 'posix':  # macOS / Linux
-            subprocess.call(('open', export_directory)) if sys.platform == 'darwin' else subprocess.call(
-                ('xdg-open', export_directory))
+                if added_files == 0:
+                    QMessageBox.warning(None, "Błąd", "Nie znaleziono plików SHP do eksportu!")
+                    return
 
-        # Log the end of the function
+        QgsMessageLog.logMessage(f"Zip file created: {zip_file_path}", "LMN2QGIS", Qgis.Info)
+
+        # **Open folder in file explorer**
+        if os.name == "nt":  # Windows
+            subprocess.call(("cmd", "/c", "start", "", export_directory))
+        elif os.name == "posix":  # macOS / Linux
+            subprocess.call(("open", export_directory)) if sys.platform == "darwin" else subprocess.call(("xdg-open", export_directory))
+
         QgsMessageLog.logMessage("on_pbExport_clicked - End", "LMN2QGIS", Qgis.Info)
-
 
 
     def on_pbRecalcId_clicked(self):
@@ -706,13 +705,13 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def show_popup(self, title, message):
         QMessageBox.warning(self.iface.mainWindow(), title, message)
 
-    def show_decision_msg_box(self, title, message):
+    def show_decision_msg_box(self, title, message, Yes_role = "Tak", No_role = "Nie"):
         msg_box = QMessageBox()
         msg_box.setWindowTitle(title)
         msg_box.setText(message)
 
-        tak_button = msg_box.addButton("Tak", QMessageBox.AcceptRole)
-        nie_button = msg_box.addButton("Nie", QMessageBox.RejectRole)
+        tak_button = msg_box.addButton(Yes_role, QMessageBox.AcceptRole)
+        nie_button = msg_box.addButton(No_role, QMessageBox.RejectRole)
 
         msg_box.exec()
 
@@ -720,3 +719,4 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             return True
         else:
             return False
+
