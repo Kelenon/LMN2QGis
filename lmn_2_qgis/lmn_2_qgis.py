@@ -67,7 +67,6 @@ class Lmn2Qgis:
         # Must be set in initGui() to survive plugin reloads
         self.first_start = None
 
-    # noinspection PyMethodMayBeStatic
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
 
@@ -79,7 +78,7 @@ class Lmn2Qgis:
         :returns: Translated version of message.
         :rtype: QString
         """
-        # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
+
         return QCoreApplication.translate('Lmn2Qgis', message)
 
 

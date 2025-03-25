@@ -132,10 +132,9 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
 ### utility functions group
 
-    # utility to quickly open desired directory either on Win, Mac or Linux
+    # utility to quickly open desired directory either on Win, Mac or Linux - not tested on other OS than Windows!
 
     def open_folder(self, folder_path):
-        # Normalize the folder path and make sure it is absolute
         folder_path = os.path.abspath(folder_path)
 
         try:
@@ -146,7 +145,6 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             else:  # Linux or other
                 subprocess.Popen(['xdg-open', folder_path])
         except Exception as e:
-            # Log the error or display a message
             QgsMessageLog.logMessage(f"def open_folder - Error opening folder: {e}", "LMN2QGIS", Qgis.Critical)
 
     # opens browse windows, for files == true browses files, for files == false browses directories
@@ -191,14 +189,13 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             unl_target_directory = os.path.join(target_directory,'unl')
             if zipfile.is_zipfile(zip_file_path):
                 try:
-                    # Open the zip file
                     with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-                        # Extract all the contents into the target directory
+                        # Extract contents to the target directory
                         zip_ref.extractall(unl_target_directory)
                         for file_name in os.listdir(unl_target_directory):
                             subdir1 = os.path.join(unl_target_directory, file_name)
                             if os.path.isdir(subdir1):
-                                # Check if 'unl' exists inside the subdir1
+                                # Check if 'unl' exists insubdir1
                                 unl_path = os.path.join(subdir1, 'unl')
                                 if os.path.isdir(unl_path):
                                     # Move files from 'unl' folder to target_directory
@@ -239,9 +236,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             if zipfile.is_zipfile(zip_file_path):
                 try:
-                    # Open the zip file
                     with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
-                        # Extract all the contents into the target directory
                         zip_ref.extractall(target_directory)
                         QgsMessageLog.logMessage(f"Successfully extracted {zip_file_path} to {target_directory}",
                                                  "LMN2QGIS", Qgis.Info)
@@ -260,7 +255,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
         if current_project:
             QgsProject.instance().write()
 
-        # Clear the current project
+        # Clear current project
         QgsProject.instance().clear()
 
         # Data paths from QLineEdits
@@ -280,24 +275,22 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             'mLAS': '005_ObiektySzkicownika'
         }
 
-        # Unzip files into their respective directories
+        #Unzip files into their respective directories
         for key, path in dataPaths.items():
-            if path:  # Only process non-empty paths
-                # Join the project directory with the sub-directory name
+            if path:  #Only process non-empty paths
                 directory = os.path.join(project_dir, unzip_directories.get(key))
                 if directory:
                     try:
-                        # Ensure dir exists
                         if not os.path.exists(directory):
                             os.makedirs(directory)
                         QgsMessageLog.logMessage(f"Unzipping {path} into {directory}",
                                                  "LMN2QGIS", Qgis.Info)
-                        self.unzip_file(path, directory, key)  # Pass the key to handle special UNL case
+                        self.unzip_file(path, directory, key)  #  Pass the key to handle UNL case
                     except Exception as e:
                         QgsMessageLog.logMessage(f"Error unzipping {path}: {e}",
                                                  "LMN2QGIS", Qgis.Critical)
 
-        # Reload the project if it was previously open
+        # Reload project if it was previously open
         if current_project:
             project_instance = QgsProject.instance()
             if not project_instance.read(current_project):
@@ -305,22 +298,19 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             else:
                 QgsMessageLog.logMessage("Project reloaded successfully.", "LMN2QGIS", Qgis.Info)
 
-        # Get the layer by name
-        layer_name = 'a_oddz_pol'  # Replace with your layer name
+        # Get layer by name
+        layer_name = 'a_oddz_pol'
         layer = QgsProject.instance().mapLayersByName(layer_name)
 
         if layer:
-            layer = layer[0]  # Get the first layer with that name
-            # Get the extent of the layer
+            layer = layer[0]
             extent = layer.extent()
-
-            # Get the map canvas
             canvas = self.iface.mapCanvas()
 
-            # Set the canvas extent to the layer's extent
+            # Set the canvas extent to layer extent
             canvas.setExtent(extent)
 
-            # Refresh the canvas to update the view
+            # Refresh canvas to update the view
             canvas.refresh()
         else:
             print(f"Layer '{layer_name}' not found.")
@@ -349,14 +339,12 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
             "a_uzyt_pol", "a_dzew_pol", "a_les_pol"
         }
 
-        # **User choice: Zip entire folder or specific shapefiles**
         choice = self.show_decision_msg_box("Export do zip", f"Wybierz 'Eksportuj wybrane' aby wyeksportować paczkę zawierającą tylko pliki warstw\n\n{shapefile_names}.\n\nOpcja 'Pełny eksport' utworzy paczkę zawierającą wszystkie pliki SLMN", "Eksportuj wybrane", "Pełny eksport")
 
-        # **Zip file name with timestamp**
         time_tag = datetime.now().strftime("%Y%m%d_%H.%M.%S.zip")
         zip_file_path = os.path.join(export_directory, time_tag)
 
-        if choice == False:  # **User chose to zip entire folder**
+        if choice == False:  # User chose to zip entire folder
             QgsMessageLog.logMessage(f"Zipping entire folder: {data_to_export_directory}", "LMN2QGIS", Qgis.Info)
             with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 for root, _, files in os.walk(data_to_export_directory):
@@ -366,7 +354,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                         zipf.write(file_path, arcname)
                         QgsMessageLog.logMessage(f"Added file: {arcname}", "LMN2QGIS", Qgis.Info)
 
-        else:  # **User chose to zip specific shapefiles**
+        else:  # User chose to zip specific shapefiles
             QgsMessageLog.logMessage("Zipping only selected SHP files...", "LMN2QGIS", Qgis.Info)
             with zipfile.ZipFile(zip_file_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 added_files = 0
@@ -386,7 +374,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         QgsMessageLog.logMessage(f"Zip file created: {zip_file_path}", "LMN2QGIS", Qgis.Info)
 
-        # **Open folder in file explorer**
+        #
         if os.name == "nt":  # Windows
             subprocess.call(("cmd", "/c", "start", "", export_directory))
         elif os.name == "posix":  # macOS / Linux
@@ -456,7 +444,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 QgsMessageLog.logMessage(f"Layer {layer.name()} is empty.", "RecalculateID", Qgis.Warning)
                 continue
 
-            # Initialize progress bar
+            # Init progress bar
             progress = QProgressDialog(f"Aktualizacja warstwy {layer.name()}...", "Przerwij", 0, feature_count, self)
             progress.setWindowTitle("Postęp")
             progress.setModal(True)
@@ -479,7 +467,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
                 updated_count += 1
                 progress.setValue(updated_count)  # Update progress bar
 
-            # Commit changes
+            # Commit edits
             layer.commitChanges()
             QgsMessageLog.logMessage(
                 f"Updated 'id' field in {layer.name()} ({updated_count}/{feature_count} features).", "RecalculateID",
@@ -650,7 +638,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
 
         if project_path:
             project_directory = os.path.dirname(project_path)
-            self.open_project(project_path, None)
+            self.open_project(project_directory, None)
             return True
 
         return False
@@ -658,7 +646,6 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def open_project(self, project_path, project_directory):
 
         if os.path.exists(project_path):
-            #self.iface.addProject(project_path)
             QgsProject.instance().read(project_path)
             if project_directory:
                 os.startfile(project_directory)  # Opens directory in file explorer
