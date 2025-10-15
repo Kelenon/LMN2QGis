@@ -533,7 +533,7 @@ class Lmn2QgisDialog(QtWidgets.QDialog, FORM_CLASS):
     def create_working_directory(self):
 
         QgsMessageLog.logMessage(f"def project_creation_wizard - user designates new working directory", "LMN2QGIS", Qgis.Info)
-        self.show_popup("Nie odnaleziono katalogu roboczego", r"Wskaż katalog, w którym przechowywane będą projekty. Zaleca się aby katalog znajdował się na profilu użytkowniku np. 'C:\Użytkownicy\nazwa.użytkownika\Dokumenty\AktualizacjaLMN'")
+        self.show_popup("Nie odnaleziono katalogu roboczego", r"Wskaż katalog, w którym przechowywane będą projekty. Zaleca się aby katalog znajdował się na profilu użytkownika np. 'C:\Użytkownicy\nazwa.użytkownika\Dokumenty\AktualizacjaLMN'")
 
         QgsMessageLog.logMessage("User prompted to create/select working directory", "LMN2QGIS", Qgis.Info)
 
