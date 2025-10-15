@@ -32,7 +32,7 @@ import uuid
 import zipfile
 from os.path import basename
 from qgis.core import (Qgis, QgsProject, QgsLayerTreeGroup, QgsVectorLayer, QgsRasterLayer,
-    QgsCoordinateReferenceSystem, QgsSettings, QgsUnitTypes, QgsLayerTreeLayer, QgsMessageLog, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils, QgsFeatureRequest, )
+    QgsCoordinateReferenceSystem, QgsSettings, QgsUnitTypes, QgsLayerTreeLayer, QgsMessageLog, QgsExpression, QgsExpressionContext, QgsExpressionContextUtils, QgsFeatureRequest)
 from PyQt5.QtCore import QUrl
 from PyQt5.QtGui import QColor
 from qgis.PyQt import uic
