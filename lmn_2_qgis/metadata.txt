@@ -6,7 +6,7 @@
 name=LMN2QGis
 qgisMinimumVersion=3.0
 description=Plugin allows for automatic project build needed for updating Forest Numerical Map and data management
-version=0.1
+version=1.0.0
 author=Adam Kurzawiński
 email=adam.kurzawinski@katowice.lasy.gov.pl
 
